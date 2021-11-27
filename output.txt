@@ -1,0 +1,20 @@
+max: 106.96475242724874
+min: 7.043521767188186
+total number of datapoints: 52000
+epsilon/dt or number of observations per epsilon:9
+epsilon:9
+total number of boxes = xBoxes5778 x yBoxes13= totalboxescount75114
+length of boxes: 17152
+Printing full figure epsilon 1:
+epsilon/dt or number of observations per epsilon:9
+epsilon:9
+total number of boxes = xBoxes5778 x yBoxes13= totalboxescount75114
+length of boxes: 17152
+Printing 0-200 figure epsilon 1:
+epsilon/dt or number of observations per epsilon:1
+epsilon:1
+total number of boxes = xBoxes52000 x yBoxes101= totalboxescount5252000
+length of boxes: 108146
+Printing 0-200 figure epsilon 2:
+-3.986339753506562
+divison by zero for second dimension analysis

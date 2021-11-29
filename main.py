@@ -6,7 +6,7 @@ import numpy as np
 import seaborn as sns
 
 dt = .001
-numGen = 1000
+numGen = 10
 differences = 0
 pl = 0
 epsilon_1 = 0.0
@@ -94,17 +94,17 @@ class Brownian:
             s: A NumPy array with the simulated stock prices over the time-period deltaT
         """
         n_step = int(deltaT / dt)
-        time_vector = np.linspace(0, deltaT, num=n_step)
+        time_vector = np.linspace(0, deltaT, num=n_step, dtype=[('x', float), ('y', float)])
         # Stock variation
-        stock_var = (mu - (sigma ** 2 / 2)) * time_vector
+        time_vector['y'] = time_vector['y'] * (mu - (sigma ** 2 / 2))
         # Forcefully set the initial value to zero for the stock price simulation
         self.x0 = 0
         # Weiner process (calls the `gen_normal` method)
         weiner_process = sigma * self.gen_normal(n_step)
         # Add two time series, take exponent, and multiply by the initial stock price
-        s = s0 * (np.exp(stock_var + weiner_process))
+        time_vector['y'] = s0 * (np.exp(time_vector['y'] + weiner_process))
 
-        return s
+        return time_vector
 
 
 def plotGeoBrown():
@@ -170,32 +170,61 @@ class Box:
         return self.Intersection
 
 
-def dimensionalAnalysis(epsilonDA, dimensionalData, Plot):
+def dimensionalAnalysis(epsilonDA, dimensionalData, Plot, boxes):
     # partition x and y
-    xBoxescount = math.ceil(len(dimensionalData) / epsilonDA)
+    # dt = .001 so for an epsilon, there is epsilon/dt observations per epsilon
+    observedDataForEpsilon = math.ceil(epsilonDA / dt)
+    xBoxescount = math.ceil(len(s['y']) / observedDataForEpsilon)
     yBoxescount = math.ceil((GlobalMax - abs(GlobalMin)) / epsilonDA) + 1  # max is always at least 0
-    observedDataForEpsilon = math.ceil(len(dimensionalData) / xBoxescount)
-    boxes = []
+    # print('epsilon/dt or number of observations per epsilon:' + str(observedDataForEpsilon))
+    # print('epsilon:' + str(epsilonDA))
+    # print('total number of boxes = xBoxes' + str(xBoxescount) +
+    #       ' x yBoxes' + str(yBoxescount) + '= totalboxescount' + str(xBoxescount * yBoxescount))
+    if len(boxes) == 0:
+        for x in range(0, xBoxescount):
+            subdata = dimensionalData['y'][
+                      math.floor(x * observedDataForEpsilon):min(len(s['y']), math.ceil((x + 1) * observedDataForEpsilon))]
+            Min = min(subdata)
+            Max = max(subdata)
+            for y in range(math.floor((abs(Min) - abs(GlobalMin)) / epsilonDA),
+                           yBoxescount - math.ceil((GlobalMax - Max) / epsilonDA) + 1):
+                B = Box(x * epsilonDA, math.floor(GlobalMin / epsilonDA) * epsilonDA + y * epsilonDA, subdata, epsilonDA)
+                boxes.append(B)
+                Plot.add_patch((patches.Rectangle((B.getX(), B.getY()), epsilonDA, epsilonDA, linewidth=.5, color='r',
+                                             fill=B.hasIntersection(), alpha=.3)))
 
-    print('epsilon/dt or number of observations per epsilon:' + str(observedDataForEpsilon))
-    print('epsilon:' + str(epsilonDA))
-    print('total number of boxes = xBoxes' + str(xBoxescount) +
-          ' x yBoxes' + str(yBoxescount) + '= totalboxescount' + str(xBoxescount * yBoxescount))
-    for x in range(0, xBoxescount):
-        subdata = dimensionalData[x * observedDataForEpsilon:(x + 1) * observedDataForEpsilon]
-        Min = min(subdata)
-        Max = max(subdata)
-        for y in range(math.floor((Min - abs(GlobalMin)) / epsilonDA),
-                       yBoxescount - math.ceil((GlobalMax - Max) / epsilonDA) + 1):
-            d = Box(x * epsilonDA, math.floor(GlobalMin / epsilonDA) * epsilonDA + y * epsilonDA, subdata, epsilonDA)
-            boxes.append(d)
-    for box in boxes:
-        Plot.add_patch(patches.Rectangle((box.getX(), box.getY()), epsilonDA, epsilonDA, linewidth=.5, color='r',
-                                         fill=box.hasIntersection(), alpha=.5))
+        Plot.plot()
+        # print('length of boxes: ' + str(len(boxes)))
+        return boxes
+    else:
+        for B in boxes:
+            p = patches.Rectangle((B.getX(), B.getY()), epsilonDA, epsilonDA, linewidth=.5, color='r',
+                                             fill=B.hasIntersection(), alpha=.3)
+            Plot.add_patch(p)
+        return boxes
 
-    Plot.plot()
-    print('length of boxes: ' + str(len(boxes)))
-    return boxes
+
+def analyseBoxes(epsilon_boxes, epsilon):
+    N_d = 0
+    for ebox in epsilon_boxes:
+        if ebox.getIntersection():
+            N_d += 1
+    print(
+        math.log(N_d) /
+        math.log(1 / epsilon)
+    )
+
+
+def plotBoxes(epsilon, axis, data, xlim, boxes):
+    axis.plot(data['x'], data['y'])
+    eboxes = dimensionalAnalysis(epsilon, data, axis, boxes)
+    print('Printing figure from ' + str(xlim[0]) + ' to ' + str(xlim[1]) + ' with epsilon:' + str(epsilon))
+    plt.xlim(xlim[0], xlim[1])
+    plt.ylim(min(data['y'][0: xlim[1] * 1000]) - 1, max(data['y'][0:xlim[1] * 1000]) + 1)
+    plt.show()
+    plt.cla()
+    plt.clf()
+    return eboxes
 
 
 stocksEndValues = []
@@ -204,57 +233,31 @@ for i in range(numGen):
     s = b.stock_price(100, 0.495, 1, 52, dt)
     # s = b.gen_random_walk(int((1000)))
     # s = b.gen_normal(1000)
-    stocksEndValues.append(s[-1])
-    plt.plot(s)
+    stocksEndValues.append(s['y'][-1])
+    plt.plot(s['x'], s['y'])
 
-s1 = plt.figure(1)
+# s1 = plt.figure(1)
 sns.displot(stocksEndValues, kind='kde', cut=0)
+plt.axvline(100, 0, 2)
 plt.show()
 plt.figure(2)
-axis = plt.gca()
-axis.plot(s)
 
-GlobalMax = max(s)
-GlobalMin = min(s)
-epsilon_1 = math.floor((GlobalMax - GlobalMin) / 10.0)
+
+GlobalMax = max(s['y'])
+GlobalMin = min(s['y'])
 print('max: ' + str(GlobalMax))
 print('min: ' + str(GlobalMin))
-print('total number of datapoints: ' + str(len(s)))
-epsilon_dimension_boxes = dimensionalAnalysis(epsilon_1, s, axis)
-print('Printing full figure epsilon 1:')
-plt.show()
-plt.cla()
-plt.clf()
-axis = plt.gca()
-axis.plot(s)
-epsilon_1_dimension_boxes = dimensionalAnalysis(epsilon_1, s, axis)
-plt.ylim(min(s[0:200]) - 2, max(s[0:200]) + 2)
-plt.xlim(0, 200)
-print('Printing 0-200 figure epsilon 1:')
-plt.show()
-plt.cla()
-plt.clf()
-axis = plt.gca()
-axis.plot(s)
-epsilon_2 = math.ceil(epsilon_1 / 10.0)
-epsilon_2_dimension_boxes = dimensionalAnalysis(epsilon_2, s, axis)
-print('Printing 0-200 figure epsilon 2:')
-plt.ylim(min(s[0:200]) - 2, max(s[0:200]) + 2)
-plt.xlim(0, 200)
-plt.show()
-N_d = 0
-for boxes in epsilon_1_dimension_boxes:
-    if boxes.getIntersection():
-        N_d += 1
-print(
-    math.log2(N_d) /
-    math.log2(1 / epsilon_1)
-)
-N_d = 0
-for boxes in epsilon_2_dimension_boxes:
-    if boxes.getIntersection():
-        N_d += 1
-print(
-    math.log2(N_d) /
-    math.log2(1 / epsilon_2)
-)
+print('total number of datapoints: ' + str(len(s['y'])))
+# epsilon = (GlobalMax - GlobalMin) / 10.0
+epsilon = 5
+eboxes = plotBoxes(epsilon, plt.gca(), s, [0, 52], [])
+eboxes = plotBoxes(epsilon, plt.gca(), s, [0, 1], eboxes)
+analyseBoxes(eboxes, epsilon)
+epsilon = .5
+eboxes = plotBoxes(epsilon, plt.gca(), s, [0, 52], [])
+eboxes = plotBoxes(epsilon, plt.gca(), s, [0, 1], eboxes)
+analyseBoxes(eboxes, epsilon)
+epsilon = .05
+eboxes = plotBoxes(epsilon, plt.gca(), s, [0, 52], [])
+eboxes = plotBoxes(epsilon, plt.gca(), s, [0, 1], eboxes)
+analyseBoxes(eboxes, epsilon)

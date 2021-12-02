@@ -131,20 +131,6 @@ def plotGeoBrown():
             driftLastDown = drift
 
 
-# class LineSegment:
-#     x1=0
-#     x2=0
-#     y1=0
-#     y2=0
-#     def __init__(self,x1,x2,y1,y2):
-#         self.x1 = x1
-#         self.x2 = x2
-#         self.y1 = y1
-#         self.y2 = y2
-#
-#     def intersection(self, ls):
-#
-
 class Box:
     xPos = 0.0
     yPos = 0.0
@@ -178,7 +164,7 @@ class Box:
     # Create a line segment from the first data point to the next one and
     # then see if that line segment intersects with the box
     def hasIntersection(self):
-        for i in range(len(self.capturedData)-1):
+        for i in range(len(self.capturedData) - 1):
             # see if datum is in capturedData
             if self.yPos <= self.capturedData['y'][i] < self.yPos + self.epsilon:
                 self.Intersection = True
@@ -223,46 +209,66 @@ class Box:
 
 
 def dimensionalAnalysis(epsilonDA, dimensionalData, Plot, boxes):
-    # partition x and y
-    # dt = .001 so for an epsilon, there is epsilon/dt observations per epsilon
-    # if epsilon< dt, then the captured datapoints is theoretically 0, but we need at least 2 datapoints
-    # to create a line that passes through it, so we set min to 2
-    observedDataForEpsilon = max(2, math.ceil(epsilonDA / dt))
-    xBoxescount = math.ceil(len(s['y']) / observedDataForEpsilon)
-    yBoxescount = math.ceil((GlobalMax - abs(GlobalMin)) / epsilonDA) + 1  # max is always at least 0
-    # print('epsilon/dt or number of observations per epsilon:' + str(observedDataForEpsilon))
-    # print('epsilon:' + str(epsilonDA))
-    # print('max number of boxes = xBoxes ' + str(xBoxescount) +
-    #       ' x yBoxes ' + str(yBoxescount) + '= totalboxescount ' + str(xBoxescount * yBoxescount / 1000000000))
-    if len(boxes) == 0:
-        for x in range(xBoxescount):
-            subdata = dimensionalData[math.floor(x * observedDataForEpsilon):min(len(s['y']),
-                                                                                 math.ceil(
-                                                                                     (x + 1) * observedDataForEpsilon)+1)]
 
-            Min = min(subdata['y'])
-            Max = max(subdata['y'])
-            for y in range(math.floor((abs(Min) - abs(GlobalMin)) / epsilonDA),
-                           yBoxescount - math.ceil((GlobalMax - Max) / epsilonDA) + 1):
-                B = Box(x * epsilonDA, math.floor(GlobalMin / epsilonDA) * epsilonDA + y * epsilonDA, subdata,
-                        epsilonDA)
-                boxes.append(B)
+        # partition x and y
+        # for an epsilon, there is epsilon/dt observations per epsilon
+        # if epsilon<= dt, then the captured datapoints is theoretically 0, but we
+        # still caputre data from the interpolation, thus we need 2 datapoints
+        # one in front and one behind
+        if len(boxes) != 0:
+            for B in boxes:
+                if B.getIntersection():
+                    p = patches.Rectangle((B.getX(), B.getY()), epsilonDA, epsilonDA, linewidth=.5, color='r',
+                                          fill=True, alpha=.3)
+                    Plot.add_patch(p)
+            Plot.plot()
+            return boxes
 
-        # print("Finished putting boxes")
-        # print('length of boxes: ' + str(len(boxes)))
+        if epsilonDA <= dt:
+            try:
+                xBoxescount = math.ceil(len(dimensionalData['y']) / epsilonDA)
+                yBoxescount = math.ceil((GlobalMax - abs(GlobalMin)) / epsilonDA) + 1  # max is always at least 0
+                for x in range(math.floor(xBoxescount)):
+                    subdata = dimensionalData[math.floor(x*epsilonDA):min(len(dimensionalData), math.ceil((x+1)*epsilonDA)+1)]
+                    Min = min(subdata['y'])
+                    Max = max(subdata['y'])
+                    for y in range(math.floor((abs(Min) - abs(GlobalMin)) / epsilonDA),
+                                   yBoxescount - math.ceil((GlobalMax - Max) / epsilonDA) + 1):
+                        B = Box(x * epsilonDA, math.floor(GlobalMin / epsilonDA) * epsilonDA + y * epsilonDA, subdata,
+                                epsilonDA)
+                        boxes.append(B)
+            except Exception as e:
+                print(e)
+        else:
+            observedDataForEpsilon = math.ceil(epsilonDA / dt)
+            xBoxescount = math.ceil(len(dimensionalData['y']) / observedDataForEpsilon)
+            yBoxescount = math.ceil((GlobalMax - abs(GlobalMin)) / epsilonDA) + 1  # max is always at least 0
+            print('epsilon/dt or number of observations per epsilon:' + str(observedDataForEpsilon))
+            # print('max number of boxes = xBoxes ' + str(xBoxescount) +
+            #       ' x yBoxes ' + str(yBoxescount) + '= totalboxescount ' + str(xBoxescount * yBoxescount / 1000000000))
+
+            for x in range(xBoxescount):
+                subdata = dimensionalData[math.floor(x * observedDataForEpsilon):min(len(s['y']),
+                                                     math.ceil((x + 1) * observedDataForEpsilon) + 1)]
+
+                Min = min(subdata['y'])
+                Max = max(subdata['y'])
+                for y in range(math.floor((abs(Min) - abs(GlobalMin)) / epsilonDA),
+                               yBoxescount - math.ceil((GlobalMax - Max) / epsilonDA) + 1):
+                    B = Box(x * epsilonDA, math.floor(GlobalMin / epsilonDA) * epsilonDA + y * epsilonDA, subdata,
+                            epsilonDA)
+                    boxes.append(B)
+
         for B in boxes:
-            B.hasIntersection()
-            Plot.add_patch((patches.Rectangle((B.getX(), B.getY()), epsilonDA, epsilonDA, linewidth=.5, color='r',
-                                              fill=B.hasIntersection(), alpha=.3)))
+            if B.hasIntersection():
+                Plot.add_patch((patches.Rectangle((
+                                B.getX(), B.getY()), epsilonDA, epsilonDA,
+                                  linewidth=.5, color='r',
+                                  fill=True, alpha=.3)))
         Plot.plot()
 
         return boxes
-    else:
-        for B in boxes:
-            p = patches.Rectangle((B.getX(), B.getY()), epsilonDA, epsilonDA, linewidth=.5, color='r',
-                                  fill=B.hasIntersection(), alpha=.3)
-            Plot.add_patch(p)
-        return boxes
+
 
 
 def analyseBoxes(epsilon_boxes, epsilon):
@@ -291,7 +297,7 @@ def plotBoxes(epsilon, axis, data, xlim, boxes):
 stocksEndValues = []
 b = Brownian()
 for i in range(numGen):
-    s = b.stock_price(100, 0.495, 1, 5, dt)
+    s = b.stock_price(100, 0.495, 1, 1, dt)
     # s = b.gen_random_walk(int((1000)))
     # s = b.gen_normal(1000)
     # stocksEndValues.append(s['y'][-1])
@@ -307,22 +313,22 @@ GlobalMin = min(s['y'])
 print('max: ' + str(GlobalMax))
 print('min: ' + str(GlobalMin))
 print('total number of datapoints: ' + str(len(s['y'])))
-print('dt'+str(dt))
+print('dt' + str(dt))
 # epsilon = (GlobalMax - GlobalMin) / 10.0
 # epsilon = .5
-# eboxes = plotBoxes(epsilon, plt.gca(), s, [0, 5], [])
-# eboxes = plotBoxes(epsilon, plt.gca(), s, [0, 1], eboxes)
+# eboxes = plotBoxes(epsilon, plt.gca(), s, [0, 1], [])
+# eboxes = plotBoxes(epsilon, plt.gca(), s, [0, .05], eboxes)
 # analyseBoxes(eboxes, epsilon)
 # epsilon = .05
-# eboxes = plotBoxes(epsilon, plt.gca(), s, [0, 5], [])
-# eboxes = plotBoxes(epsilon, plt.gca(), s, [0, 1], eboxes)
+# eboxes = plotBoxes(epsilon, plt.gca(), s, [0, 1], [])
+# eboxes = plotBoxes(epsilon, plt.gca(), s, [0, .05], eboxes)
 # analyseBoxes(eboxes, epsilon)
 # epsilon = .005
 # eboxes = plotBoxes(epsilon, plt.gca(), s, [0, 1], [])
 # eboxes = plotBoxes(epsilon, plt.gca(), s, [0, .05], eboxes)
 # analyseBoxes(eboxes, epsilon)
 epsilon = .0005
-eboxes = plotBoxes(epsilon, plt.gca(), s, [0, 1], [])
-eboxes = plotBoxes(epsilon, plt.gca(), s, [0, .05], eboxes)
+eboxes = plotBoxes(epsilon, plt.gca(), s, [0, .01], [])
+eboxes = plotBoxes(epsilon, plt.gca(), s, [0, .001], eboxes)
 analyseBoxes(eboxes, epsilon)
 print(0)

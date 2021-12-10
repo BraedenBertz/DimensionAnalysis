@@ -1,6 +1,4 @@
 import math
-
-import matplotlib.animation as animation
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,7 +6,7 @@ import pandas as pd
 import seaborn as sns
 
 dt = .001
-numGen = 10
+numGen = 100
 differences = 0
 pl = 0
 
@@ -107,14 +105,17 @@ class Brownian:
 
         return time_vector
 
-    
+
 class Box:
+
     xPos = 0.0
     yPos = 0.0
     capturedData = np.ndarray
     Intersection = False
     epsilon = 0.0
-
+    """
+    A Box class constructor
+    """
     def __init__(self, xPos=0.0, yPos=0.0, capturedData=None, epsilon=0.0):
         if capturedData is None:
             capturedData = []
@@ -136,18 +137,33 @@ class Box:
         return self.xPos + self.epsilon
 
     def ccw(self, a, b, c):
+        """
+        determining if three points are listed in a counterclockwise order.
+        So say you have three points A, B and C.
+        If the slope of the line AB is less than the slope of the line AC then
+        the three points are listed in a counterclockwise order.
+        """
         return (c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0])
 
-    # Create a line segment from the first data point to the next one and
-    # then see if that line segment intersects with the box
+
     def hasIntersection(self):
+        """
+        Determine if this box intersects or has data within its bounds
+        """
         for a in range(len(self.capturedData) - 1):
             # see if datum is in capturedData
             if self.yPos <= self.capturedData['y'][a] <= self.yPos + self.epsilon:
                 self.Intersection = True
                 return True
             else:
-                # A is the LL of rect
+                # Think of two line segments AB, and CD. These intersect if and only if
+                # points A and B are separated by segment CD and points C and D are
+                # separated by segment AB. If points A and B are separated by segment CD then
+                # ACD and BCD should have opposite orientation meaning
+                # either ACD or BCD is counterclockwise but not both
+                # CD is always the line segment of our datapoints, but AB changes to
+                # Be the line segment of the rectangle
+                # A is the Lower Left of rect
                 # B is the TL
                 # C is datapoint at i
                 # D is datapoint at i+1
@@ -186,49 +202,35 @@ class Box:
 
 
 def dimensionalAnalysis(epsilonDA, dimensionalData, boxes):
-    # partition x and y
-    # for an epsilon, there is epsilon/dt observations per epsilon
-    # if epsilon<= dt, then the captured datapoints is theoretically 0, but we
-    # still caputre data from the interpolation, thus we need 2 datapoints
-    # one in front and one behind
-    if epsilonDA <= dt:
-        try:
-            xBoxesCount = math.ceil(len(dimensionalData['y']) / epsilonDA)
-            yBoxesCount = math.ceil((GlobalMax - abs(GlobalMin)) / epsilonDA) + 1  # max is always at least 0
-            for x in range(xBoxesCount):
-                SubData = dimensionalData[
-                          math.floor(x * epsilonDA):min(len(dimensionalData), math.ceil((x + 1) * epsilonDA) + 1)]
-                Min = min(SubData['y'])
-                Max = max(SubData['y'])
-                for y in range(math.floor((abs(Min) - abs(GlobalMin)) / epsilonDA),
-                               yBoxesCount - math.ceil((GlobalMax - Max) / epsilonDA) + 1):
-                    B = Box(x * epsilonDA, math.floor(GlobalMin / epsilonDA) * epsilonDA + y * epsilonDA, SubData,
-                            epsilonDA)
-                    boxes.append(B)
-        except Exception as e:
-            print(e)
-    else:
-        observedDataForEpsilon = math.ceil(epsilonDA / dt)
-        xBoxesCount = math.ceil(len(dimensionalData['y']) / observedDataForEpsilon)
-        yBoxesCount = math.ceil((GlobalMax - abs(GlobalMin)) / epsilonDA) + 1  # max is always at least 0
-        for x in range(xBoxesCount):
-            lower_index = math.floor(x * observedDataForEpsilon)
-            upper_index = min(len(dimensionalData['y']), math.ceil((x + 1) * observedDataForEpsilon) + 1)
-            SubData = dimensionalData[lower_index: upper_index]
-
-            Min = min(SubData['y'])
-            Max = max(SubData['y'])
-            for y in range(math.floor((abs(Min) - abs(GlobalMin)) / epsilonDA),
-                                       yBoxesCount - math.ceil((GlobalMax - Max) / epsilonDA) + 1):
-                B = Box(x * epsilonDA, math.floor(GlobalMin / epsilonDA) * epsilonDA + y * epsilonDA,
-                        SubData, epsilonDA)
-                boxes.append(B)
+    """
+    Create boxes that mimimally cover the data given an epsilon width for the boxes
+    Record those boxes to later be evaluated for intersections and be placed on graphs
+    """
+    observedDataForEpsilon = math.ceil(epsilonDA / dt)
+    xBoxesCount = math.ceil(len(dimensionalData['y']) / observedDataForEpsilon)
+    yBoxesCount = math.ceil((GlobalMax - abs(GlobalMin)) / epsilonDA) + 1  # max is always at least 0
+    upper_index = 0
+    for x in range(xBoxesCount):
+        lower_index = max(0, upper_index-math.ceil((x*epsilonDA)%1)-1)
+        upper_index = min(len(dimensionalData['y']), math.ceil((x + 1) * epsilonDA/dt) + 1)
+        SubData = dimensionalData[lower_index: upper_index]
+        Min = min(SubData['y'])
+        Max = max(SubData['y'])
+        for y in range(math.floor(((abs(Min) - abs(GlobalMin)) / epsilonDA)),
+                                   yBoxesCount - math.ceil((GlobalMax - Max) / epsilonDA) + 1):
+            B = Box(x * epsilonDA, math.floor(GlobalMin / epsilonDA) * epsilonDA + y * epsilonDA,
+                    SubData, epsilonDA)
+            boxes.append(B)
     for B in boxes:
         B.hasIntersection()
     return boxes
 
 
 def analyseBoxes(epsilon_boxes, epsilon):
+    """
+    Record the number of boxes that have an intersection N_d. Then, display log N_d, log 1/epsilon
+    rounded to 2 decimal digits
+    """
     N_d = 0
     for ebox in epsilon_boxes:
         if ebox.getIntersection():
@@ -239,6 +241,11 @@ def analyseBoxes(epsilon_boxes, epsilon):
 
 
 def plotBoxes(epsilon, axis, data, xlim, boxes):
+    """
+    Given the plot, and our boxes (if not empty) fill in the plot with
+    boxes with fill determined by their intersection status
+    This should fully cover the data provided in red boxes of width epsilon
+    """
     axis.plot(data['x'], data['y'])
     if len(boxes) == 0:
         boxes = dimensionalAnalysis(epsilon, data, boxes)
@@ -249,26 +256,44 @@ def plotBoxes(epsilon, axis, data, xlim, boxes):
     axis.plot()
     print('Printing figure from ' + str(xlim[0]) + ' to ' + str(xlim[1]) + ' with epsilon:' + str(epsilon))
     plt.xlim(xlim[0], xlim[1])
-    plt.ylim(min(data['y'][0: int(xlim[1] * 1/dt)]) - 1, max(data['y'][0: int(xlim[1] * 1/dt)]) + 1)
+    plt.ylim(min(data['y'][int(xlim[0]/dt): int(xlim[1]/dt)]) - 1, max(data['y'][int(xlim[0]/dt): int(xlim[1]/dt)]) + 1)
     plt.show()
     plt.cla()
     plt.clf()
     return boxes
 
+
 def prettifyGraph(epsilon):
+    """
+    Add x and y axis titles
+    """
     plt.title(epsilon)
     plt.xlabel('time')
     plt.ylabel('price')
 
+
 def limitEpsilon(t, end, DATA):
+    """
+    Calculate the box counting size of the data for an epsilon and continue
+    until the epsilon reaches a certain threshold
+    EX: epsilon = 11
+        end = .01
+        continue analysing the data with progressively smaller epsilons until
+        an epsilon of .01 or less is analyzed
+    """
+    print(' ε      N(ε)    log(1/ε)    log(N(ε)) \n---- ---------- ----------  -----------')
     while t > end:
         t = t/2
-        analyseBoxes(dimensionalAnalysis(t, DATA, []), t)
+        plotBoxes(t, plt.gca(), DATA, [0, 1], [])
 
+"""
+Main body
+"""
 stocksEndValues = []
 b = Brownian()
+#Create a kernel density plot of the brownian motion objects (expected mean of 100)
 for i in range(numGen):
-    s = b.stock_price(100, 0.49, 1, 1, dt)
+    s = b.stock_price(100, 0.495, 1, 10, dt)
     # s = b.gen_random_walk(int((1000)))
     # s = b.gen_normal(1000)
     stocksEndValues.append(s['y'][-1])
@@ -278,6 +303,7 @@ sns.displot(stocksEndValues, kind='kde', cut=0)
 plt.axvline(100, 0, 2)
 plt.show()
 
+
 GlobalMax = max(s['y'])
 GlobalMin = min(s['y'])
 print('max: ' + str(GlobalMax))
@@ -286,22 +312,39 @@ print('total number of datapoints: ' + str(len(s['y'])))
 print('dt: ' + str(dt))
 
 
-print(' ε      N(ε)    log(1/ε)    log(N(ε)) \n---- ---------- ----------  -----------')
-limitEpsilon(11, .009, s)
+# limitEpsilon(11, .001, s)
+# plotBoxes(0.0107421875, plt.gca(), s, [.05, .1], [])
+# plotBoxes(0.00537109375, plt.gca(), s, [.05, .1], [])
+plotBoxes(.0001, plt.gca(), s, [.05, .07], [])
 
-data = pd.read_csv('C:\\Users\\Braeden\\Downloads\\HistoricalData_1638573336813.csv')
+#DIMENSIONAL ANALYSIS OF THE NASDAQ FROM 12/03/2021 -> 12/06/2016
+data = pd.read_csv('nasdaq.csv')
 data = data.iloc[::-1]
 nasdaq = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', int), ('y', float)])
 nasdaq['y'] = data['Open'].to_numpy()
-plt.plot(nasdaq['x'], nasdaq['y'])
-plt.show()
+# plt.plot(nasdaq['x'], nasdaq['y'])
+# plt.show()
 GlobalMax = max(nasdaq['y'])
 GlobalMin = min(nasdaq['y'])
-epsilon = 2
+epsilon = 4.4
 dt = 1
-print(' ε      N(ε)    log(1/ε)    log(N(ε)) \n---- ---------- ----------  -----------')
-limitEpsilon(11, .05, nasdaq)
-eboxes = plotBoxes(epsilon, plt.gca(), nasdaq, [0,100], [])
+
+limitEpsilon(11, .5, nasdaq)
+eboxes = plotBoxes(epsilon, plt.gca(), nasdaq, [800,830], [])
 plotBoxes(epsilon, plt.gca(), nasdaq, [0,10], eboxes)
-eboxes = plotBoxes(epsilon/5.0, plt.gca(), nasdaq, [0,10], [])
-plotBoxes(epsilon/5.0, plt.gca(), nasdaq, [0,2], eboxes)
+eboxes = plotBoxes(epsilon/5.0, plt.gca(), nasdaq, [800,810], [])
+plotBoxes(epsilon/5.0, plt.gca(), nasdaq, [10,12], eboxes)
+
+#DIMENSIONAL ANALYSIS OF THE NIKKEI FROM 12/07/2021 -> 11/08/2010
+data = pd.read_csv('Nikkei.csv')
+Nikkei = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', int), ('y', float)])
+Nikkei['y'] = data['Open'].to_numpy()
+plt.plot(Nikkei['x'], Nikkei['y'])
+plt.show()
+GlobalMax = max(Nikkei['y'])
+GlobalMin = min(Nikkei['y'])
+limitEpsilon(121, .5, Nikkei)
+eboxes = plotBoxes(epsilon, plt.gca(), Nikkei, [800,880], [])
+plotBoxes(epsilon, plt.gca(), Nikkei, [10,12], eboxes)
+eboxes = plotBoxes(epsilon/5.0, plt.gca(), Nikkei, [800,880], [])
+plotBoxes(epsilon/5.0, plt.gca(), Nikkei, [10,12], eboxes)

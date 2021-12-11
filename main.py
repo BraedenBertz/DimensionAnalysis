@@ -5,8 +5,8 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-dt = .001
-numGen = 100
+dt = 1
+numGen = 2
 differences = 0
 pl = 0
 
@@ -27,35 +27,23 @@ class Brownian:
     def gen_random_walk(self, n_step=100):
         """
         Generate motion by random walk
-
-        Arguments:
-            n_step: Number of steps
-
-        Returns:
-            A NumPy array with `n_steps` points
         """
         # Warning about the small number of steps
         if n_step < 30:
             print("WARNING! The number of steps is small. It may not generate a good stochastic process sequence!")
 
-        w = np.ones(n_step) * self.x0
+        w = np.linspace(0, n_step, num=n_step, dtype=[('x', float), ('y', float)])
 
         for i in range(1, n_step):
             # Sampling from the Normal distribution with probability 1/2
             yi = np.random.choice([1, -1])
             # Weiner process
-            w[i] = w[i - 1] + (yi / np.sqrt(n_step))
+            w['y'][i] = w['y'][i - 1] + (yi / np.sqrt(n_step))
         return w
 
     def gen_normal(self, n_step=100):
         """
         Generate motion by drawing from the Normal distribution
-
-        Arguments:
-            n_step: Number of steps
-
-        Returns:
-            A NumPy array with `n_steps` points
         """
         if n_step < 30:
             print("WARNING! The number of steps is small. It may not generate a good stochastic process sequence!")
@@ -81,16 +69,6 @@ class Brownian:
         """
         Models a stock price S(t) using the Weiner process W(t) as
         `S(t) = S(0).exp{(mu-(sigma^2/2).t)+sigma.W(t)}`
-
-        Arguments:
-            s0: Iniital stock price, default 100
-            mu: 'Drift' of the stock (upwards or downwards), default 1
-            sigma: 'Volatility' of the stock, default 1
-            deltaT: The time period for which the future prices are computed, default 52 (as in 52 weeks)
-            dt (optional): The granularity of the time-period, default 0.1
-
-        Returns:
-            s: A NumPy array with the simulated stock prices over the time-period deltaT
         """
         n_step = int(deltaT / dt)
         time_vector = np.linspace(0, deltaT, num=n_step, dtype=[('x', float), ('y', float)])
@@ -107,7 +85,6 @@ class Brownian:
 
 
 class Box:
-
     xPos = 0.0
     yPos = 0.0
     capturedData = np.ndarray
@@ -116,6 +93,7 @@ class Box:
     """
     A Box class constructor
     """
+
     def __init__(self, xPos=0.0, yPos=0.0, capturedData=None, epsilon=0.0):
         if capturedData is None:
             capturedData = []
@@ -145,7 +123,6 @@ class Box:
         """
         return (c[1] - a[1]) * (b[0] - a[0]) > (b[1] - a[1]) * (c[0] - a[0])
 
-
     def hasIntersection(self):
         """
         Determine if this box intersects or has data within its bounds
@@ -163,21 +140,15 @@ class Box:
                 # either ACD or BCD is counterclockwise but not both
                 # CD is always the line segment of our datapoints, but AB changes to
                 # Be the line segment of the rectangle
-                # A is the Lower Left of rect
-                # B is the TL
+
+                # A is (LL) Lower left of rectangle
+                # B is (LR) Lower right of rectangle
                 # C is datapoint at i
                 # D is datapoint at i+1
                 A = [self.xPos, self.yPos]
-                B = [self.xPos, self.yPos + self.epsilon]
+                B = [self.xPos + self.epsilon, self.yPos]
                 C = [self.capturedData['x'][a], self.capturedData['y'][a]]
                 D = [self.capturedData['x'][a + 1], self.capturedData['y'][a + 1]]
-                if self.ccw(A, C, D) != self.ccw(B, C, D) and self.ccw(A, B, C) != self.ccw(A, B, D):
-                    self.Intersection = True
-                    return True
-                # A is LL
-                # B is LR
-                A = [self.xPos, self.yPos]
-                B = [self.xPos + self.epsilon, self.yPos]
                 if self.ccw(A, C, D) != self.ccw(B, C, D) and self.ccw(A, B, C) != self.ccw(A, B, D):
                     self.Intersection = True
                     return True
@@ -188,6 +159,7 @@ class Box:
                 if self.ccw(A, C, D) != self.ccw(B, C, D) and self.ccw(A, B, C) != self.ccw(A, B, D):
                     self.Intersection = True
                     return True
+
                 # A is TR
                 # B is LR
                 A = [self.xPos + self.epsilon, self.yPos + self.epsilon]
@@ -195,6 +167,16 @@ class Box:
                 if self.ccw(A, C, D) != self.ccw(B, C, D) and self.ccw(A, B, C) != self.ccw(A, B, D):
                     self.Intersection = True
                     return True
+
+                # A is the Lower Left of rect
+                # B is the TL
+                # An intersection on the fourth line segment of the rectangle without it htitting any other line segement
+                # and no data points being within the box is impossible
+                # A = [self.xPos, self.yPos]
+                # B = [self.xPos, self.yPos + self.epsilon]
+                # if self.ccw(A, C, D) != self.ccw(B, C, D) and self.ccw(A, B, C) != self.ccw(A, B, D):
+                #     self.Intersection = True
+                #     return True
         return False
 
     def getIntersection(self):
@@ -203,7 +185,7 @@ class Box:
 
 def dimensionalAnalysis(epsilonDA, dimensionalData, boxes):
     """
-    Create boxes that mimimally cover the data given an epsilon width for the boxes
+    Create boxes that minimally cover the data given an epsilon width for the boxes
     Record those boxes to later be evaluated for intersections and be placed on graphs
     """
     observedDataForEpsilon = math.ceil(epsilonDA / dt)
@@ -211,14 +193,14 @@ def dimensionalAnalysis(epsilonDA, dimensionalData, boxes):
     yBoxesCount = math.ceil((GlobalMax - abs(GlobalMin)) / epsilonDA) + 1  # max is always at least 0
     upper_index = 0
     for x in range(xBoxesCount):
-        lower_index = max(0, upper_index-math.ceil((x*epsilonDA)%1)-1)
-        upper_index = min(len(dimensionalData['y']), math.ceil((x + 1) * epsilonDA/dt) + 1)
+        lower_index = max(0, upper_index - math.ceil((x * epsilonDA) % 1) - 1)
+        upper_index = min(len(dimensionalData['y']), math.ceil((x + 1) * epsilonDA / dt) + 1)
         SubData = dimensionalData[lower_index: upper_index]
         Min = min(SubData['y'])
         Max = max(SubData['y'])
-        for y in range(math.floor(((abs(Min) - abs(GlobalMin)) / epsilonDA)),
-                                   yBoxesCount - math.ceil((GlobalMax - Max) / epsilonDA) + 1):
-            B = Box(x * epsilonDA, math.floor(GlobalMin / epsilonDA) * epsilonDA + y * epsilonDA,
+        for y in range(math.floor(((Min - GlobalMin) / epsilonDA)),
+                       yBoxesCount - math.ceil((GlobalMax - Max) / epsilonDA) + 1):
+            B = Box(x * epsilonDA, GlobalMin + y * epsilonDA,
                     SubData, epsilonDA)
             boxes.append(B)
     for B in boxes:
@@ -235,9 +217,10 @@ def analyseBoxes(epsilon_boxes, epsilon):
     for ebox in epsilon_boxes:
         if ebox.getIntersection():
             N_d += 1
-    print(str(epsilon)+'       '+str(N_d)+
-          '        '+str(round(math.log(1/epsilon),2))+
-          '        '+str(round(math.log(N_d),2)))
+    x = 0
+    print(str(epsilon) + '       ' + str(N_d) +
+          '        ' + str(round(math.log(1 / epsilon), 2)) +
+          '        ' + str(round(math.log(N_d), 2)))
 
 
 def plotBoxes(epsilon, axis, data, xlim, boxes):
@@ -250,13 +233,16 @@ def plotBoxes(epsilon, axis, data, xlim, boxes):
     if len(boxes) == 0:
         boxes = dimensionalAnalysis(epsilon, data, boxes)
     for B in boxes:
+        if not B.getIntersection():
+            continue
         p = patches.Rectangle((B.getX(), B.getY()), epsilon, epsilon, linewidth=0, color='r',
-                              fill=B.getIntersection(), alpha=.3)
+                              fill=True, alpha=.3)
         axis.add_patch(p)
     axis.plot()
-    print('Printing figure from ' + str(xlim[0]) + ' to ' + str(xlim[1]) + ' with epsilon:' + str(epsilon))
+    # print('Printing figure from ' + str(xlim[0]) + ' to ' + str(xlim[1]) + ' with epsilon:' + str(epsilon))
     plt.xlim(xlim[0], xlim[1])
-    plt.ylim(min(data['y'][int(xlim[0]/dt): int(xlim[1]/dt)]) - 1, max(data['y'][int(xlim[0]/dt): int(xlim[1]/dt)]) + 1)
+    plt.ylim(min(data['y'][int(xlim[0] / dt): int(xlim[1] / dt)]) - 1,
+             max(data['y'][int(xlim[0] / dt): int(xlim[1] / dt)]) + 1)
     plt.show()
     plt.cla()
     plt.clf()
@@ -267,9 +253,9 @@ def prettifyGraph(epsilon):
     """
     Add x and y axis titles
     """
-    plt.title(epsilon)
-    plt.xlabel('time')
-    plt.ylabel('price')
+    plt.title("Epsilon =: "+ str(epsilon))
+    plt.xlabel('Time')
+    plt.ylabel('Price')
 
 
 def limitEpsilon(t, end, DATA):
@@ -283,26 +269,27 @@ def limitEpsilon(t, end, DATA):
     """
     print(' ε      N(ε)    log(1/ε)    log(N(ε)) \n---- ---------- ----------  -----------')
     while t > end:
-        t = t/2
-        plotBoxes(t, plt.gca(), DATA, [0, 1], [])
-
+        t = t / 2
+        # prettifyGraph(t)
+        # eboxes = plotBoxes(t, plt.gca(), DATA, [0, 1], [])
+        # analyseBoxes(eboxes, t)
+        analyseBoxes(dimensionalAnalysis(t, DATA, []), t)
 """
 Main body
 """
 stocksEndValues = []
 b = Brownian()
-#Create a kernel density plot of the brownian motion objects (expected mean of 100)
+# Create a kernel density plot of the brownian motion objects (expected mean of 100)
 for i in range(numGen):
-    s = b.stock_price(100, 0.495, 1, 10, dt)
-    # s = b.gen_random_walk(int((1000)))
+    # s = b.stock_price(100, 0.495, 1, 1, dt)
+    s = b.gen_random_walk(1000)
     # s = b.gen_normal(1000)
-    stocksEndValues.append(s['y'][-1])
-    plt.plot(s['x'], s['y'])
-
-sns.displot(stocksEndValues, kind='kde', cut=0)
-plt.axvline(100, 0, 2)
-plt.show()
-
+#     stocksEndValues.append(s['y'][-1])
+#     plt.plot(s['x'], s['y'])
+#
+# sns.displot(stocksEndValues, kind='kde', cut=0)
+# plt.axvline(100, 0, 2)
+# plt.show()
 
 GlobalMax = max(s['y'])
 GlobalMin = min(s['y'])
@@ -311,31 +298,22 @@ print('min: ' + str(GlobalMin))
 print('total number of datapoints: ' + str(len(s['y'])))
 print('dt: ' + str(dt))
 
+limitEpsilon(11, .0002, s)
 
-# limitEpsilon(11, .001, s)
-# plotBoxes(0.0107421875, plt.gca(), s, [.05, .1], [])
-# plotBoxes(0.00537109375, plt.gca(), s, [.05, .1], [])
-plotBoxes(.0001, plt.gca(), s, [.05, .07], [])
-
-#DIMENSIONAL ANALYSIS OF THE NASDAQ FROM 12/03/2021 -> 12/06/2016
+# DIMENSIONAL ANALYSIS OF THE NASDAQ FROM 12/03/2021 -> 12/06/2016
 data = pd.read_csv('nasdaq.csv')
 data = data.iloc[::-1]
 nasdaq = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', int), ('y', float)])
 nasdaq['y'] = data['Open'].to_numpy()
-# plt.plot(nasdaq['x'], nasdaq['y'])
-# plt.show()
+plt.plot(nasdaq['x'], nasdaq['y'])
+plt.show()
 GlobalMax = max(nasdaq['y'])
 GlobalMin = min(nasdaq['y'])
-epsilon = 4.4
 dt = 1
 
-limitEpsilon(11, .5, nasdaq)
-eboxes = plotBoxes(epsilon, plt.gca(), nasdaq, [800,830], [])
-plotBoxes(epsilon, plt.gca(), nasdaq, [0,10], eboxes)
-eboxes = plotBoxes(epsilon/5.0, plt.gca(), nasdaq, [800,810], [])
-plotBoxes(epsilon/5.0, plt.gca(), nasdaq, [10,12], eboxes)
+limitEpsilon(121, .5, nasdaq)
 
-#DIMENSIONAL ANALYSIS OF THE NIKKEI FROM 12/07/2021 -> 11/08/2010
+# DIMENSIONAL ANALYSIS OF THE NIKKEI FROM 12/07/2021 -> 11/08/2010
 data = pd.read_csv('Nikkei.csv')
 Nikkei = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', int), ('y', float)])
 Nikkei['y'] = data['Open'].to_numpy()
@@ -344,7 +322,3 @@ plt.show()
 GlobalMax = max(Nikkei['y'])
 GlobalMin = min(Nikkei['y'])
 limitEpsilon(121, .5, Nikkei)
-eboxes = plotBoxes(epsilon, plt.gca(), Nikkei, [800,880], [])
-plotBoxes(epsilon, plt.gca(), Nikkei, [10,12], eboxes)
-eboxes = plotBoxes(epsilon/5.0, plt.gca(), Nikkei, [800,880], [])
-plotBoxes(epsilon/5.0, plt.gca(), Nikkei, [10,12], eboxes)

@@ -1,7 +1,7 @@
 import math
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
-import numpy
+from scipy import stats
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -211,6 +211,31 @@ def dimensionalAnalysis(epsilonDA, dimensionalData, boxes):
     return boxes
 
 
+def roughanddirty_dimensionalAnalysis(epsilonDA, dimensionalData):
+    """
+    calculate without boxes (so no graphing capability) the amount of boxes needed to cover the time series
+    """
+    observedDataForEpsilon = math.ceil(epsilonDA / dt)
+    xBoxesCount = math.ceil(len(dimensionalData['y']) / observedDataForEpsilon)
+    yBoxesCount = math.ceil((GlobalMax - abs(GlobalMin)) / epsilonDA) + 1  # max is always at least 0
+    upper_index = 0
+    num_boxes=0
+    for x in range(xBoxesCount):
+        lower_index = max(0, upper_index - math.ceil((x * epsilonDA) % 1) - 1)
+        upper_index = min(len(dimensionalData['y']), math.ceil((x + 1) * epsilonDA / dt) + 1)
+        SubData = dimensionalData[lower_index: upper_index]
+        Min = min(SubData['y'])
+        Max = max(SubData['y'])
+        num_boxes = num_boxes + \
+                    yBoxesCount - math.ceil((GlobalMax - Max) / epsilonDA) - \
+                    math.floor(((Min - GlobalMin) / epsilonDA))
+
+        # for y in range(math.floor(((Min - GlobalMin) / epsilonDA)),
+        #                yBoxesCount - math.ceil((GlobalMax - Max) / epsilonDA)):
+        #     num_boxes = num_boxes + 1
+
+    return num_boxes
+
 def analyseBoxes(epsilon_boxes, epsilon):
     """
     Record the number of boxes that have an intersection N_d. Then, display log N_d, log 1/epsilon
@@ -223,8 +248,8 @@ def analyseBoxes(epsilon_boxes, epsilon):
     x = 0
     XXX.append(math.log(1 / epsilon))
     YYY.append(math.log(N_d))
-    print(str(epsilon) + '       ' + str(N_d) +
-          '        ' + str(round(math.log(1 / epsilon), 2)) +
+    print('{:.1e}'.format(epsilon) + '     {:.1e}'.format(epsilon) +
+          '       ' + str(round(math.log(1 / epsilon), 2)) +
           '        ' + str(round(math.log(N_d), 2)))
 
 
@@ -262,6 +287,27 @@ def prettifyGraph(epsilon):
     plt.xlabel('Time')
     plt.ylabel('Price')
 
+def rough_limitEpsilon(t, end, DATA):
+    """
+    Calculate the box counting size of the data for an epsilon and continue
+    until the epsilon reaches a certain threshold using rough_dimensionalAnalysis
+    EX: epsilon = 11
+        end = .01
+        continue analysing the data with progressively smaller epsilons until
+        an epsilon of .01 or less is analyzed
+    """
+    print(' ε            N(ε)         log(1/ε)     log(N(ε)) \n-------    ----------    -----------  -----------')
+    while t > end:
+        t = t / 2
+        # prettifyGraph(t)
+        # eboxes = plotBoxes(t, plt.gca(), DATA, [0, 1], [])
+        # analyseBoxes(eboxes, t)
+        XXX.append(math.log(1 / t))
+        N_d = roughanddirty_dimensionalAnalysis(t, DATA)
+        YYY.append(math.log(N_d))
+        print('{:.1e}'.format(t)+ '     {:.1e}'.format(t)+
+            '       ' + str(round(math.log(1 / t), 2)) +
+          '        ' + str(round(math.log(N_d), 2)))
 
 def limitEpsilon(t, end, DATA):
     """
@@ -272,9 +318,9 @@ def limitEpsilon(t, end, DATA):
         continue analysing the data with progressively smaller epsilons until
         an epsilon of .01 or less is analyzed
     """
-    print(' ε      N(ε)    log(1/ε)    log(N(ε)) \n---- ---------- ----------  -----------')
+    print(' ε            N(ε)         log(1/ε)     log(N(ε)) \n-------    ----------    -----------  -----------')
     while t > end:
-        t = t / 2
+        t = t / 1.5
         # prettifyGraph(t)
         # eboxes = plotBoxes(t, plt.gca(), DATA, [0, 1], [])
         # analyseBoxes(eboxes, t)
@@ -286,7 +332,7 @@ stocksEndValues = []
 b = Brownian()
 # Create a kernel density plot of the brownian motion objects (expected mean of 100)
 for i in range(numGen):
-    s = b.stock_price(100, 0.495, 1, 1, dt)
+    s = b.stock_price(100, 0.5, 1, 128, dt)
     # s = b.gen_random_walk(1000)
     # s = b.gen_normal(1000)
     # stocksEndValues.append(s['y'][-1])
@@ -305,9 +351,26 @@ print('min: ' + str(GlobalMin))
 print('total number of datapoints: ' + str(len(s['y'])))
 print('dt: ' + str(dt))
 
-limitEpsilon(11, .00001, s)
+rough_limitEpsilon(61, .001, s)
+plt.ylabel('log(n_d)')
+plt.xlabel('log(1/e)')
 plt.plot(XXX,YYY)
+slope = stats.linregress(XXX, YYY)
+plt.title(str(slope.slope) + ' : Generated Stock Slope')
 plt.show()
+print(slope)
+XXX, YYY =  [],[]
+# compare to
+# limitEpsilon(61, .001, s)
+# plt.ylabel('log(n_d)')
+# plt.xlabel('log(1/e)')
+# plt.plot(XXX,YYY)
+# slope, intercept, r_value, p_value, std_err = stats.linregress(XXX, YYY)
+# plt.title(slope)
+# plt.show()
+# XXX, YYY =  [],[]
+# print(slope)
+
 
 # DIMENSIONAL ANALYSIS OF THE NASDAQ FROM 12/03/2021 -> 12/06/2016
 dt = 1
@@ -315,24 +378,113 @@ data = pd.read_csv('nasdaq.csv')
 data = data.iloc[::-1]
 nasdaq = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', int), ('y', float)])
 nasdaq['y'] = data['Open'].to_numpy()
-plt.plot(nasdaq['x'], nasdaq['y'])
-plt.show()
+# plt.plot(nasdaq['x'], nasdaq['y'])
+# plt.show()
 GlobalMax = max(nasdaq['y'])
 GlobalMin = min(nasdaq['y'])
 
-
-limitEpsilon(121, .5, nasdaq)
+rough_limitEpsilon(2000, 1, nasdaq)
+plt.ylabel('log(n_d)')
+plt.xlabel('log(1/e)')
 plt.plot(XXX,YYY)
+slope = stats.linregress(XXX, YYY)
+plt.title(str(slope.slope) + ' : NASDAQ Slope')
+plt.show()
+print(slope)
+XXX, YYY =  [],[]
+# Compare to
+# limitEpsilon(121, 1, nasdaq)
+# plt.ylabel('log(n_d)')
+# plt.xlabel('log(1/e)')
+# plt.plot(XXX,YYY)
+# slope, intercept, r_value, p_value, std_err = stats.linregress(XXX, YYY)
+# plt.title(slope.slope)
+# plt.show()
+# print(slope)
+# XXX, YYY =  [],[]
 
 # DIMENSIONAL ANALYSIS OF THE NIKKEI FROM 12/07/2021 -> 11/08/2010
 data = pd.read_csv('Nikkei.csv')
 Nikkei = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', int), ('y', float)])
 Nikkei['y'] = data['Open'].to_numpy()
-plt.plot(Nikkei['x'], Nikkei['y'])
-plt.show()
+# plt.plot(Nikkei['x'], Nikkei['y'])
+# plt.show()
 GlobalMax = max(Nikkei['y'])
 GlobalMin = min(Nikkei['y'])
-limitEpsilon(121, .5, Nikkei)
+rough_limitEpsilon(2000, 1, Nikkei)
+plt.ylabel('log(n_d)')
+plt.xlabel('log(1/e)')
+plt.plot(XXX,YYY)
+slope = stats.linregress(XXX, YYY)
+plt.title(str(slope.slope) + ' : NIKKEI Slope')
+plt.show()
+print(slope)
+XXX, YYY =  [],[]
+# Compare to
+# limitEpsilon(121, 1, Nikkei)
+# plt.ylabel('log(n_d)')
+# plt.xlabel('log(1/e)')
+# plt.plot(XXX,YYY)
+# slope, intercept, r_value, p_value, std_err = stats.linregress(XXX, YYY)
+# plt.title(slope.slope)
+# plt.show()
+# print(slope)
+# XXX, YYY =  [],[]
 
+data = pd.read_csv('BitCoin1YearPrice1-1-2021.csv')
+bitcoin = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', int), ('y', float)])
+bitcoin['y'] = data['Open'].to_numpy()
+GlobalMax = max(bitcoin['y'])
+GlobalMin = min(bitcoin['y'])
+rough_limitEpsilon(2000, 1, bitcoin)
+plt.ylabel('log(n_d)')
+plt.xlabel('log(1/e)')
+plt.plot(XXX,YYY)
+slope = stats.linregress(XXX, YYY)
+plt.title(str(slope.slope) + ' : BITCOIN Slope')
+plt.show()
+print(slope)
+XXX, YYY =  [],[]
+# Compare to
+# limitEpsilon(121, 1, bitcoin)
+# plt.ylabel('log(n_d)')
+# plt.xlabel('log(1/e)')
+# plt.plot(XXX,YYY)
+# slope, intercept, r_value, p_value, std_err = stats.linregress(XXX, YYY)
+# plt.title(slope.slope)
+# plt.show()
+# print(slope)
+# XXX, YYY =  [],[]
+
+data = pd.read_csv('GOOG-1-min-8-2-2021.csv')
+goog = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', int), ('y', float)])
+goog['y'] = data['Open'].to_numpy()
+GlobalMax = max(goog['y'])
+GlobalMin = min(goog['y'])
+rough_limitEpsilon(2000, 1, goog)
+plt.ylabel('log(n_d)')
+plt.xlabel('log(1/e)')
+plt.plot(XXX,YYY)
+slope = stats.linregress(XXX, YYY)
+plt.title(str(slope.slope) + ' : GOOG Slope')
+plt.show()
+print(slope)
+XXX, YYY =  [],[]
+# Compare to
+# limitEpsilon(121, 1, goog)
+# plt.ylabel('log(n_d)')
+# plt.xlabel('log(1/e)')
+# plt.plot(XXX,YYY)
+# slope, intercept, r_value, p_value, std_err = stats.linregress(XXX, YYY)
+# plt.title(slope.slope)
+# plt.show()
+# print(slope)
+# XXX, YYY =  [],[]
+
+# For a more computationally efficient tho maybe less accurate calculation, consider
+# using the roughanddirty_dimensionalAnalysis which doesn't create boxes and instead just computes
+# the area. Limit using rough_limit
 
 # N_e prop to e^d
+# https://econwpa.ub.uni-muenchen.de/econ-wp/em/papers/0504/0504005.pdf
+# http://www.scholarpedia.org/article/Grassberger-Procaccia_algorithm

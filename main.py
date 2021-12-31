@@ -456,6 +456,7 @@ XXX, YYY =  [],[]
 # print(slope)
 # XXX, YYY =  [],[]
 
+# Data from https://github.com/captainbuckkets/Finzeit
 data = pd.read_csv('GOOG-1-min-8-2-2021.csv')
 goog = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', int), ('y', float)])
 goog['y'] = data['Open'].to_numpy()
@@ -467,6 +468,31 @@ plt.xlabel('log(1/e)')
 plt.plot(XXX,YYY)
 slope = stats.linregress(XXX, YYY)
 plt.title(str(slope.slope) + ' : GOOG Slope')
+plt.show()
+print(slope)
+XXX, YYY =  [],[]
+# Compare to
+# limitEpsilon(121, 1, goog)
+# plt.ylabel('log(n_d)')
+# plt.xlabel('log(1/e)')
+# plt.plot(XXX,YYY)
+# slope, intercept, r_value, p_value, std_err = stats.linregress(XXX, YYY)
+# plt.title(slope.slope)
+# plt.show()
+# print(slope)
+# XXX, YYY =  [],[]
+
+data = pd.read_csv('enron.csv')
+enron = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', int), ('y', float)])
+enron['y'] = data['Open'].to_numpy()
+GlobalMax = max(enron['y'])
+GlobalMin = min(enron['y'])
+rough_limitEpsilon(2000, 1, enron)
+plt.ylabel('log(n_d)')
+plt.xlabel('log(1/e)')
+plt.plot(XXX,YYY)
+slope = stats.linregress(XXX, YYY)
+plt.title(str(slope.slope) + ' : enron Slope')
 plt.show()
 print(slope)
 XXX, YYY =  [],[]

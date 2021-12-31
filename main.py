@@ -1,14 +1,17 @@
 import math
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
+import numpy
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
-dt = 1
+dt = .001
 numGen = 2
 differences = 0
 pl = 0
+XXX = []
+YYY = []
 
 
 class Brownian:
@@ -30,7 +33,7 @@ class Brownian:
         """
         # Warning about the small number of steps
         if n_step < 30:
-            print("WARNING! The number of steps is small. It may not generate a good stochastic process sequence!")
+            print("RW: WARNING! The number of steps is small. It may not generate a good stochastic process sequence!")
 
         w = np.linspace(0, n_step, num=n_step, dtype=[('x', float), ('y', float)])
 
@@ -46,7 +49,7 @@ class Brownian:
         Generate motion by drawing from the Normal distribution
         """
         if n_step < 30:
-            print("WARNING! The number of steps is small. It may not generate a good stochastic process sequence!")
+            print("GN: WARNING! The number of steps is small. It may not generate a good stochastic process sequence!")
 
         w = np.ones(n_step) * self.x0
 
@@ -218,6 +221,8 @@ def analyseBoxes(epsilon_boxes, epsilon):
         if ebox.getIntersection():
             N_d += 1
     x = 0
+    XXX.append(math.log(1 / epsilon))
+    YYY.append(math.log(N_d))
     print(str(epsilon) + '       ' + str(N_d) +
           '        ' + str(round(math.log(1 / epsilon), 2)) +
           '        ' + str(round(math.log(N_d), 2)))
@@ -281,12 +286,14 @@ stocksEndValues = []
 b = Brownian()
 # Create a kernel density plot of the brownian motion objects (expected mean of 100)
 for i in range(numGen):
-    # s = b.stock_price(100, 0.495, 1, 1, dt)
-    s = b.gen_random_walk(1000)
+    s = b.stock_price(100, 0.495, 1, 1, dt)
+    # s = b.gen_random_walk(1000)
     # s = b.gen_normal(1000)
-#     stocksEndValues.append(s['y'][-1])
-#     plt.plot(s['x'], s['y'])
-#
+    # stocksEndValues.append(s['y'][-1])
+    # plt.plot(s['x'], s['y'])
+
+# Show the kernel densitiy plot of the endpoints of stocks, an average of 100 should
+# indicate that the stochastic process has no noticeable drift
 # sns.displot(stocksEndValues, kind='kde', cut=0)
 # plt.axvline(100, 0, 2)
 # plt.show()
@@ -298,9 +305,12 @@ print('min: ' + str(GlobalMin))
 print('total number of datapoints: ' + str(len(s['y'])))
 print('dt: ' + str(dt))
 
-limitEpsilon(11, .0002, s)
+limitEpsilon(11, .00001, s)
+plt.plot(XXX,YYY)
+plt.show()
 
 # DIMENSIONAL ANALYSIS OF THE NASDAQ FROM 12/03/2021 -> 12/06/2016
+dt = 1
 data = pd.read_csv('nasdaq.csv')
 data = data.iloc[::-1]
 nasdaq = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', int), ('y', float)])
@@ -309,9 +319,10 @@ plt.plot(nasdaq['x'], nasdaq['y'])
 plt.show()
 GlobalMax = max(nasdaq['y'])
 GlobalMin = min(nasdaq['y'])
-dt = 1
+
 
 limitEpsilon(121, .5, nasdaq)
+plt.plot(XXX,YYY)
 
 # DIMENSIONAL ANALYSIS OF THE NIKKEI FROM 12/07/2021 -> 11/08/2010
 data = pd.read_csv('Nikkei.csv')
@@ -322,3 +333,6 @@ plt.show()
 GlobalMax = max(Nikkei['y'])
 GlobalMin = min(Nikkei['y'])
 limitEpsilon(121, .5, Nikkei)
+
+
+# N_e prop to e^d

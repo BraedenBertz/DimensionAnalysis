@@ -4,14 +4,19 @@ import matplotlib.pyplot as plt
 from scipy import stats
 import numpy as np
 import pandas as pd
+from statsmodels.tsa.stattools import adfuller
+import time
+from scipy.stats import shapiro
+from scipy.stats import normaltest
 import seaborn as sns
 
-dt = .001
+dt = .01
 numGen = 2
 differences = 0
 pl = 0
 XXX = []
 YYY = []
+printEpsilons = False
 
 
 class Brownian:
@@ -236,6 +241,7 @@ def roughanddirty_dimensionalAnalysis(epsilonDA, dimensionalData):
 
     return num_boxes
 
+
 def analyseBoxes(epsilon_boxes, epsilon):
     """
     Record the number of boxes that have an intersection N_d. Then, display log N_d, log 1/epsilon
@@ -287,6 +293,7 @@ def prettifyGraph(epsilon):
     plt.xlabel('Time')
     plt.ylabel('Price')
 
+
 def rough_limitEpsilon(t, end, DATA):
     """
     Calculate the box counting size of the data for an epsilon and continue
@@ -296,7 +303,8 @@ def rough_limitEpsilon(t, end, DATA):
         continue analysing the data with progressively smaller epsilons until
         an epsilon of .01 or less is analyzed
     """
-    print(' ε            N(ε)         log(1/ε)     log(N(ε)) \n-------    ----------    -----------  -----------')
+    if printEpsilons:
+        print(' ε            N(ε)         log(1/ε)     log(N(ε)) \n-------    ----------    -----------  -----------')
     while t > end:
         t = t / 2
         # prettifyGraph(t)
@@ -305,9 +313,68 @@ def rough_limitEpsilon(t, end, DATA):
         XXX.append(math.log(1 / t))
         N_d = roughanddirty_dimensionalAnalysis(t, DATA)
         YYY.append(math.log(N_d))
-        print('{:.1e}'.format(t)+ '     {:.1e}'.format(t)+
-            '       ' + str(round(math.log(1 / t), 2)) +
-          '        ' + str(round(math.log(N_d), 2)))
+        if printEpsilons:
+            print('{:.1e}'.format(t)+ '     {:.1e}'.format(t)+
+                '       ' + str(round(math.log(1 / t), 2)) +
+              '        ' + str(round(math.log(N_d), 2)))
+
+
+def priceChange(string, Data):
+    d = np.asarray((Data['x'][-1], Data['y'][-1]), dtype=[('x', float), ('y', float)])
+
+    Data1 = np.hstack([Data, d])
+    Data2 = np.insert(Data, 0, (Data['x'][0], Data['y'][0]))
+    Data1['y'] = np.subtract(Data1['y'],Data2['y'])
+    d = Data1
+    plt.plot(d['x'], d['y'])
+    plt.title(string + " price changes")
+    plt.show()
+
+    dftest = adfuller(d['y'], autolag='AIC')
+    dfoutput = pd.Series(dftest[0:4], index=['Test Statistic', 'p-value', '#lags used', 'number of observations used'])
+    for key, value in dftest[4].items():
+        dfoutput['critical value (%s)' % key] = value
+    print(dfoutput)
+    stat, p = shapiro(d['y'])
+    print('Shapiro-Wilkes test statistics=%.3f, p=%.3f' % (stat, p))
+    stat, p = normaltest(d['y'])
+    print('D\'Agostino k^2 Statistics=%.3f, p=%.3f' % (stat, p))
+    return d
+
+
+def labelPlot():
+    plt.ylabel('log(n_d)')
+    plt.xlabel('log(1/e)')
+
+
+def maxMin(Data):
+    return max(Data['y']), min(Data['y'])
+
+
+def abline(slope, intercept):
+    """Plot a line from slope and intercept"""
+    axes = plt.gca()
+    x_vals = np.array(axes.get_xlim())
+    y_vals = intercept + slope * x_vals
+    plt.plot(x_vals, y_vals, '--')
+
+
+def linReg(stri, x, y):
+    labelPlot()
+    plt.plot(x, y)
+    result = stats.linregress(x, y)
+    plt.title(str(result.slope) + ' : ' + stri + ' Slope')
+    abline(1.5, result.intercept)
+    plt.show()
+    print(result)
+
+
+def pre_process(string):
+    data = pd.read_csv(string)
+    d = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', float), ('y', float)])
+    d['y'] = data['Open'].to_numpy()
+    return d
+
 
 def limitEpsilon(t, end, DATA):
     """
@@ -325,6 +392,8 @@ def limitEpsilon(t, end, DATA):
         # eboxes = plotBoxes(t, plt.gca(), DATA, [0, 1], [])
         # analyseBoxes(eboxes, t)
         analyseBoxes(dimensionalAnalysis(t, DATA, []), t)
+
+
 """
 Main body
 """
@@ -332,7 +401,7 @@ stocksEndValues = []
 b = Brownian()
 # Create a kernel density plot of the brownian motion objects (expected mean of 100)
 for i in range(numGen):
-    s = b.stock_price(100, 0.5, 1, 128, dt)
+    s = b.stock_price(100, 0.5, 1, 52, dt)
     # s = b.gen_random_walk(1000)
     # s = b.gen_normal(1000)
     # stocksEndValues.append(s['y'][-1])
@@ -344,109 +413,33 @@ for i in range(numGen):
 # plt.axvline(100, 0, 2)
 # plt.show()
 
-GlobalMax = max(s['y'])
-GlobalMin = min(s['y'])
-print('max: ' + str(GlobalMax))
-print('min: ' + str(GlobalMin))
-print('total number of datapoints: ' + str(len(s['y'])))
-print('dt: ' + str(dt))
-
+GlobalMax, GlobalMin = maxMin(s)
+d = priceChange("generated stock",s)
 rough_limitEpsilon(61, .001, s)
-plt.ylabel('log(n_d)')
-plt.xlabel('log(1/e)')
-plt.plot(XXX,YYY)
-slope = stats.linregress(XXX, YYY)
-plt.title(str(slope.slope) + ' : Generated Stock Slope')
-plt.show()
-print(slope)
-XXX, YYY =  [],[]
-# compare to
-# limitEpsilon(61, .001, s)
-# plt.ylabel('log(n_d)')
-# plt.xlabel('log(1/e)')
-# plt.plot(XXX,YYY)
-# slope, intercept, r_value, p_value, std_err = stats.linregress(XXX, YYY)
-# plt.title(slope)
-# plt.show()
-# XXX, YYY =  [],[]
-# print(slope)
-
-
+linReg("generated stock", XXX, YYY)
+XXX, YYY = [],[]
+rough_limitEpsilon(61, .001, d)
+linReg("generated stock price changes", XXX, YYY)
+XXX, YYY = [], []
 # DIMENSIONAL ANALYSIS OF THE NASDAQ FROM 12/03/2021 -> 12/06/2016
-dt = 1
-data = pd.read_csv('nasdaq.csv')
-data = data.iloc[::-1]
-nasdaq = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', int), ('y', float)])
-nasdaq['y'] = data['Open'].to_numpy()
-# plt.plot(nasdaq['x'], nasdaq['y'])
-# plt.show()
-GlobalMax = max(nasdaq['y'])
-GlobalMin = min(nasdaq['y'])
-
-rough_limitEpsilon(2000, 1, nasdaq)
-plt.ylabel('log(n_d)')
-plt.xlabel('log(1/e)')
-plt.plot(XXX,YYY)
-slope = stats.linregress(XXX, YYY)
-plt.title(str(slope.slope) + ' : NASDAQ Slope')
-plt.show()
-print(slope)
-XXX, YYY =  [],[]
-# Compare to
-# limitEpsilon(121, 1, nasdaq)
-# plt.ylabel('log(n_d)')
-# plt.xlabel('log(1/e)')
-# plt.plot(XXX,YYY)
-# slope, intercept, r_value, p_value, std_err = stats.linregress(XXX, YYY)
-# plt.title(slope.slope)
-# plt.show()
-# print(slope)
-# XXX, YYY =  [],[]
-
 # DIMENSIONAL ANALYSIS OF THE NIKKEI FROM 12/07/2021 -> 11/08/2010
-data = pd.read_csv('Nikkei.csv')
-Nikkei = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', int), ('y', float)])
-Nikkei['y'] = data['Open'].to_numpy()
-# plt.plot(Nikkei['x'], Nikkei['y'])
-# plt.show()
-GlobalMax = max(Nikkei['y'])
-GlobalMin = min(Nikkei['y'])
-rough_limitEpsilon(2000, 1, Nikkei)
-plt.ylabel('log(n_d)')
-plt.xlabel('log(1/e)')
-plt.plot(XXX,YYY)
-slope = stats.linregress(XXX, YYY)
-plt.title(str(slope.slope) + ' : NIKKEI Slope')
-plt.show()
-print(slope)
-XXX, YYY =  [],[]
-# Compare to
-# limitEpsilon(121, 1, Nikkei)
-# plt.ylabel('log(n_d)')
-# plt.xlabel('log(1/e)')
-# plt.plot(XXX,YYY)
-# slope, intercept, r_value, p_value, std_err = stats.linregress(XXX, YYY)
-# plt.title(slope.slope)
-# plt.show()
-# print(slope)
-# XXX, YYY =  [],[]
+dt = 1
+securities = {"nasdaq", "Nikkei", "BitCoin1YearPrice1-1-2021", "GOOG-1-min-8-2-2021", "enron"}
+for security in securities:
+    nasdaq = pre_process(security+'.csv')
+    # plt.plot(nasdaq['x'], nasdaq['y'])
+    # plt.show()
+    d = priceChange(security, nasdaq)
+    GlobalMax, GlobalMin = maxMin(nasdaq)
+    rough_limitEpsilon(2000, 1, nasdaq)
+    linReg(security, XXX, YYY)
+    XXX, YYY = [], []
+    rough_limitEpsilon(2000, 1, d)
+    linReg(security+" price changes", XXX, YYY)
+    XXX, YYY = [], []
 
-data = pd.read_csv('BitCoin1YearPrice1-1-2021.csv')
-bitcoin = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', int), ('y', float)])
-bitcoin['y'] = data['Open'].to_numpy()
-GlobalMax = max(bitcoin['y'])
-GlobalMin = min(bitcoin['y'])
-rough_limitEpsilon(2000, 1, bitcoin)
-plt.ylabel('log(n_d)')
-plt.xlabel('log(1/e)')
-plt.plot(XXX,YYY)
-slope = stats.linregress(XXX, YYY)
-plt.title(str(slope.slope) + ' : BITCOIN Slope')
-plt.show()
-print(slope)
-XXX, YYY =  [],[]
 # Compare to
-# limitEpsilon(121, 1, bitcoin)
+# limitEpsilon(121, 1, enron)
 # plt.ylabel('log(n_d)')
 # plt.xlabel('log(1/e)')
 # plt.plot(XXX,YYY)
@@ -454,58 +447,6 @@ XXX, YYY =  [],[]
 # plt.title(slope.slope)
 # plt.show()
 # print(slope)
-# XXX, YYY =  [],[]
-
-# Data from https://github.com/captainbuckkets/Finzeit
-data = pd.read_csv('GOOG-1-min-8-2-2021.csv')
-goog = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', int), ('y', float)])
-goog['y'] = data['Open'].to_numpy()
-GlobalMax = max(goog['y'])
-GlobalMin = min(goog['y'])
-rough_limitEpsilon(2000, 1, goog)
-plt.ylabel('log(n_d)')
-plt.xlabel('log(1/e)')
-plt.plot(XXX,YYY)
-slope = stats.linregress(XXX, YYY)
-plt.title(str(slope.slope) + ' : GOOG Slope')
-plt.show()
-print(slope)
-XXX, YYY =  [],[]
-# Compare to
-# limitEpsilon(121, 1, goog)
-# plt.ylabel('log(n_d)')
-# plt.xlabel('log(1/e)')
-# plt.plot(XXX,YYY)
-# slope, intercept, r_value, p_value, std_err = stats.linregress(XXX, YYY)
-# plt.title(slope.slope)
-# plt.show()
-# print(slope)
-# XXX, YYY =  [],[]
-
-data = pd.read_csv('enron.csv')
-enron = np.linspace(0, len(data['Date']), num=len(data['Date']), dtype=[('x', int), ('y', float)])
-enron['y'] = data['Open'].to_numpy()
-GlobalMax = max(enron['y'])
-GlobalMin = min(enron['y'])
-rough_limitEpsilon(2000, 1, enron)
-plt.ylabel('log(n_d)')
-plt.xlabel('log(1/e)')
-plt.plot(XXX,YYY)
-slope = stats.linregress(XXX, YYY)
-plt.title(str(slope.slope) + ' : enron Slope')
-plt.show()
-print(slope)
-XXX, YYY =  [],[]
-# Compare to
-# limitEpsilon(121, 1, goog)
-# plt.ylabel('log(n_d)')
-# plt.xlabel('log(1/e)')
-# plt.plot(XXX,YYY)
-# slope, intercept, r_value, p_value, std_err = stats.linregress(XXX, YYY)
-# plt.title(slope.slope)
-# plt.show()
-# print(slope)
-# XXX, YYY =  [],[]
 
 # For a more computationally efficient tho maybe less accurate calculation, consider
 # using the roughanddirty_dimensionalAnalysis which doesn't create boxes and instead just computes

@@ -438,6 +438,55 @@ for security in securities:
     linReg(security+" price changes", XXX, YYY)
     XXX, YYY = [], []
 
+#cauchy test for s
+list_of_dists = ['alpha', 'anglit', 'arcsine', 'beta', 'betaprime', 'bradford', 'burr', 'burr12', 'cauchy', 'chi',
+                 'chi2', 'cosine', 'dgamma', 'dweibull', 'expon', 'exponnorm', 'exponweib', 'exponpow', 'f',
+                 'fatiguelife', 'fisk', 'foldcauchy', 'foldnorm', 'genlogistic', 'genpareto',
+                 'gennorm', 'genexpon', 'genextreme', 'gausshyper', 'gamma', 'gengamma', 'genhalflogistic', 'gilbrat',
+                 'gompertz', 'gumbel_r', 'gumbel_l', 'halfcauchy', 'halflogistic', 'halfnorm', 'halfgennorm',
+                 'hypsecant', 'invgamma', 'invgauss', 'invweibull', 'johnsonsb', 'johnsonsu', 'kstwobign', 'laplace',
+                 'levy', 'levy_l', 'logistic', 'loggamma', 'loglaplace', 'lognorm', 'lomax', 'maxwell', 'mielke',
+                 'nakagami', 'ncx2', 'ncf', 'nct', 'norm', 'pareto', 'pearson3', 'powerlaw', 'powerlognorm',
+                 'powernorm', 'rdist', 'reciprocal', 'rayleigh', 'rice', 'recipinvgauss', 'semicircular', 't', 'triang',
+                 'truncexpon', 'truncnorm', 'tukeylambda', 'uniform', 'vonmises', 'vonmises_line', 'wald',
+                 'weibull_min', 'weibull_max']
+
+results = []
+for i in list_of_dists:
+    dist = getattr(stats, i)
+    param = dist.fit(d['y'])
+    a = stats.kstest(d['y'], i, args=param)
+    results.append((i, a[0], a[1]))
+
+results.sort(key=lambda x: float(x[2]), reverse=True)
+for j in results:
+    print("{}: statistic={}, pvalue={}".format(j[0], j[1], j[2]))
+
+d = priceChange("bitcoin", pre_process("BitCoin1YearPrice1-1-2021.csv"))
+results = []
+for i in list_of_dists:
+    dist = getattr(stats, i)
+    param = dist.fit(d['y'])
+    a = stats.kstest(d['y'], i, args=param)
+    results.append((i, a[0], a[1]))
+
+results.sort(key=lambda x: float(x[2]), reverse=True)
+
+for j in results:
+    print("{}: statistic={}, pvalue={}".format(j[0], j[1], j[2]))
+
+d = priceChange("nasdaq", pre_process("nasdaq.csv"))
+results = []
+for i in list_of_dists:
+    dist = getattr(stats, i)
+    param = dist.fit(d['y'])
+    a = stats.kstest(d['y'], i, args=param)
+    results.append((i, a[0], a[1]))
+
+results.sort(key=lambda x: float(x[2]), reverse=True)
+
+for j in results:
+    print("{}: statistic={}, pvalue={}".format(j[0], j[1], j[2]))
 # Compare to
 # limitEpsilon(121, 1, enron)
 # plt.ylabel('log(n_d)')
